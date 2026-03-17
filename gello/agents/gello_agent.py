@@ -22,8 +22,8 @@ class DynamixelRobotConfig:
     This will be different for each arm design. Refernce the examples below for the correct signs for your robot.
     """
 
-    gripper_config: Tuple[int, int, int]
-    """The gripper config of GELLO. This is a tuple of (gripper_joint_id, degrees in open_position, degrees in closed_position)."""
+    gripper_config: Optional[Tuple[int, int, int]] = None
+    """The gripper config of GELLO. This is a tuple of (gripper_joint_id, degrees in open_position, degrees in closed_position). If None, no gripper will be used."""
 
     def __post_init__(self):
         assert len(self.joint_ids) == len(self.joint_offsets)
@@ -105,6 +105,21 @@ PORT_CONFIG_MAP: Dict[str, DynamixelRobotConfig] = {
         joint_signs=(1, 1, -1, 1, 1, 1),
         gripper_config=(7, 286, 248),
     ),
+    # FR3 /dev/serial/by-id/usb-FTDI_USB_TO_RS-485_DAK2KK44-if00-port0 usb-FTDI_USB__-__Serial_Converter_FTAJEDPC-if00-port0
+    "/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTAM5DHY-if00-port0": DynamixelRobotConfig(
+        joint_ids=(1, 2, 3, 4, 5, 6, 7),
+        # joint_offsets=(0*np.pi/2, 2*np.pi/2, 4*np.pi/2, 2*np.pi/2, 2*np.pi/2, 2*np.pi/2, 2*np.pi/2),
+        joint_offsets=(2*np.pi/2, 2*np.pi/2, 0*np.pi/2, 2*np.pi/2, 2*np.pi/2, 2*np.pi/2, 2*np.pi/2),
+        joint_signs=(1, -1, 1, 1, 1, -1, 1),
+        gripper_config=(8, 199, 157),
+    ),
+    "/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTAJEDPC-if00-port0": DynamixelRobotConfig(
+        joint_ids=(1, 2, 3, 4, 5, 6, 7),
+        joint_offsets=(2*np.pi/2, 2*np.pi/2, 4*np.pi/2, 2*np.pi/2, 2*np.pi/2, 5*np.pi/2, 2*np.pi/2),
+        # joint_offsets=(2*np.pi/2, 2*np.pi/2, 0*np.pi/2, 2*np.pi/2, 2*np.pi/2, 5*np.pi/2, 2*np.pi/2),
+        joint_signs=(1, -1, 1, -1, 1, -1, 1),
+        gripper_config=(8, 197, 155),
+    ),
 }
 
 
@@ -114,11 +129,20 @@ class GelloAgent(Agent):
         port: str,
         dynamixel_config: Optional[DynamixelRobotConfig] = None,
         start_joints: Optional[np.ndarray] = None,
+        no_gripper: bool = False,
     ):
         # Ensure start_joints is a numpy array if provided
         if start_joints is not None and not isinstance(start_joints, np.ndarray):
             start_joints = np.array(start_joints)
         if dynamixel_config is not None:
+            # If no_gripper is True, create a copy of config without gripper
+            if no_gripper:
+                dynamixel_config = DynamixelRobotConfig(
+                    joint_ids=dynamixel_config.joint_ids,
+                    joint_offsets=dynamixel_config.joint_offsets,
+                    joint_signs=dynamixel_config.joint_signs,
+                    gripper_config=None,
+                )
             self._robot = dynamixel_config.make_robot(
                 port=port, start_joints=start_joints
             )
@@ -127,6 +151,14 @@ class GelloAgent(Agent):
             assert port in PORT_CONFIG_MAP, f"Port {port} not in config map"
 
             config = PORT_CONFIG_MAP[port]
+            # If no_gripper is True, create a copy of config without gripper
+            if no_gripper:
+                config = DynamixelRobotConfig(
+                    joint_ids=config.joint_ids,
+                    joint_offsets=config.joint_offsets,
+                    joint_signs=config.joint_signs,
+                    gripper_config=None,
+                )
             self._robot = config.make_robot(port=port, start_joints=start_joints)
 
     def act(self, obs: Dict[str, np.ndarray]) -> np.ndarray:

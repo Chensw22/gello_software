@@ -10,6 +10,8 @@ from gello.env import RobotEnv
 from gello.robots.robot import PrintRobot
 from gello.utils.launch_utils import instantiate_from_dict
 from gello.zmq_core.robot_node import ZMQClientRobot
+from gello.agents.gello_agent import PORT_CONFIG_MAP
+
 
 
 def print_color(*args, color=None, attrs=(), **kwargs):
@@ -22,8 +24,8 @@ def print_color(*args, color=None, attrs=(), **kwargs):
 
 @dataclass
 class Args:
-    agent: str = "none"
-    robot_port: int = 6001
+    agent: str = "None"
+    robot_port: int = 5555
     wrist_camera_port: int = 5000
     base_camera_port: int = 5001
     hostname: str = "127.0.0.1"
@@ -121,18 +123,25 @@ def main(args):
         for jnt in np.linspace(curr_joints, reset_joints, steps):
             env.step(jnt)
     else:
+        print(args.agent)
         if args.agent == "gello":
             gello_port = args.gello_port
             if gello_port is None:
+                # change by csw in 315
                 usb_ports = glob.glob("/dev/serial/by-id/*")
                 print(f"Found {len(usb_ports)} ports")
-                if len(usb_ports) > 0:
-                    gello_port = usb_ports[0]
+
+                valid_ports = [p for p in usb_ports if p in PORT_CONFIG_MAP]
+                print(f"Valid gello ports: {valid_ports}")
+
+                if len(valid_ports) > 0:
+                    gello_port = valid_ports[0]
                     print(f"using port {gello_port}")
                 else:
                     raise ValueError(
-                        "No gello port found, please specify one or plug in gello"
+                        f"No valid gello port found. Detected ports: {usb_ports}"
                     )
+
             agent_cfg = {
                 "_target_": "gello.agents.gello_agent.GelloAgent",
                 "port": gello_port,
